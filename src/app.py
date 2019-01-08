@@ -1,18 +1,32 @@
-from numpy import arccos, cos, sin, matrix, subtract, deg2rad, rad2deg, multiply
+import os
+
+from numpy import arctan2, arccos, arcsin, cos, sin, matrix, subtract, deg2rad, rad2deg, multiply, sqrt
+
+
+HAVERSINE = os.getenv("HAVERSINE") == "1" or False
+EARTH_RADIUS = 6371000
 
 
 class EarthPosition(object):
-    EARTH_RADIUS = 6371000
-
     def __init__(self, latitude, longitude, time=0):
         self.latitude = deg2rad(latitude)
         self.longitude = deg2rad(longitude)
         self.time = time
 
+    @staticmethod
+    def haversine_nb(lon1, lat1, lon2, lat2):
+        dlon = lon2 - lon1
+        dlat = lat2 - lat1
+        a = sin(dlat / 2.0) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2.0) ** 2
+        return 6367 * 2 * arcsin(sqrt(a))
+
     def d(a, b):
-        return a.EARTH_RADIUS * arccos(
-            cos(a.latitude) * cos(b.latitude) * cos(a.longitude - b.longitude) + sin(a.latitude) * sin(b.latitude)
-        )
+        if not HAVERSINE:
+            return EARTH_RADIUS * arccos(
+                cos(a.latitude) * cos(b.latitude) * cos(a.longitude - b.longitude) + sin(a.latitude) * sin(b.latitude)
+            )
+        else:
+            return a.haversine_nb(a.longitude, a.latitude, b.longitude, b.latitude)
 
     def __repr__(self):
         return "[{0}, {1}]".format(rad2deg(self.latitude), rad2deg(self.longitude))
