@@ -94,6 +94,20 @@ def starting_estimate(x1, x2, x3):
     )
 
 
+def stability_testing(last_solution):
+    for x in range(0, 10):
+        for y in range(0, 10):
+            x1 = EarthPosition(61.601944 + x * 0.1, -149.117222 + y * 0.1, 7.5) # Palmer, Alaska
+            x2 = EarthPosition(39.746944, -105.210833, 23) # Golden, Colorado
+            x3 = EarthPosition(4.711111, -74.072222, 44) # Bogota, Columbia
+            solver = EpicenterSolver(x1, x2, x3)
+            solution = solver.solve(starting_estimate(x1, x2, x3), 1000)
+            print(EarthPosition(
+                solution.latitude - last_solution.latitude,
+                solution.longitude - last_solution.longitude,
+                0
+            ))
+
 if __name__ == "__main__":
     x1 = EarthPosition(61.601944, -149.117222, 7.5) # Palmer, Alaska
     x2 = EarthPosition(39.746944, -105.210833, 23) # Golden, Colorado
@@ -106,3 +120,6 @@ if __name__ == "__main__":
             + str(solution.d(x1) / 1600) + ", "
             + str(solution.d(x2) / 1600) + ", "
             + str(solution.d(x3) / 1600))
+
+    if os.getenv("STABILITY_TEST") == "1":
+        stability_testing(solution)
