@@ -1,6 +1,6 @@
 import os
 
-from numpy import arctan2, arccos, arcsin, cos, sin, matrix, subtract, deg2rad, rad2deg, multiply, sqrt
+from numpy import arctan2, arccos, arcsin, cos, sin, array, subtract, deg2rad, rad2deg, multiply, sqrt
 
 
 HAVERSINE = os.getenv("HAVERSINE") == "1" or False
@@ -8,10 +8,11 @@ EARTH_RADIUS = 6371000
 
 
 class EarthPosition(object):
-    def __init__(self, latitude, longitude, time=0):
-        self.latitude = deg2rad(latitude)
-        self.longitude = deg2rad(longitude)
-        self.time = time
+    def __init__(self, latitude, longitude, time=0, convertToRad=False):
+        self.latitude = deg2rad(latitude) if convertToRad else latitude
+        self.longitude = deg2rad(longitude) if convertToRad else longitude
+
+        self.time = float(time)
 
     @staticmethod
     def haversine_nb(lon1, lat1, lon2, lat2):
@@ -32,9 +33,13 @@ class EarthPosition(object):
         return "[{0}, {1}]".format(rad2deg(self.latitude), rad2deg(self.longitude))
 
 
-def derivative(fun, x):
+def derivative_in_first(fun, x):
     h = 1e-6
-    return (fun(x + h) - fun(x - h)) / (2 * h)
+    return (fun(EarthPosition(x.latitude + h, x.longitude)) - fun(EarthPosition(x.latitude - h, x.longitude))) / (2 * h)
+
+def derivative_in_second(fun, x):
+    h = 1e-6
+    return (fun(EarthPosition(x.latitude, x.longitude + h)) - fun(EarthPosition(x.latitude, x.longitude - h))) / (2 * h)
 
 
 class EpicenterSolver(object):
@@ -43,42 +48,28 @@ class EpicenterSolver(object):
         self.x2 = x2
         self.x3 = x3
 
-    @classmethod
-    def test_function(cls, x1, x2, x):
-        return x1.d(x) / x2.d(x) - x1.time / x2.time
+    def f1(self, x):
+        return self.x1.d(x) / self.x2.d(x) - self.x1.time / self.x2.time
 
-    @classmethod
-    def longitude_function(cls, x1, x2, latitude):
-        return lambda x: cls.test_function(x1, x2, EarthPosition(latitude, x))
-
-    @classmethod
-    def latitude_function(cls, x1, x2, longitude):
-        return lambda x: cls.test_function(x1, x2, EarthPosition(x, longitude))
+    def f2(self, x):
+        return self.x2.d(x) / self.x3.d(x) - self.x2.time / self.x3.time
 
     def inverse_jacoby(self, x):
-        f1_lat = self.latitude_function(self.x1, self.x2, x.longitude)
-        f1_lon = self.longitude_function(self.x1, self.x2, x.latitude)
+        a = derivative_in_first(self.f1, x)
+        b = derivative_in_second(self.f1, x)
+        c = derivative_in_first(self.f2, x)
+        d = derivative_in_second(self.f2, x)
 
-        f2_lat = self.latitude_function(self.x2, self.x3, x.longitude)
-        f2_lon = self.longitude_function(self.x2, self.x3, x.latitude)
-
-        a = derivative(f1_lat, x.latitude)
-        b = derivative(f1_lon, x.longitude)
-        c = derivative(f2_lat, x.latitude)
-        d = derivative(f2_lon, x.longitude)
-
-        return multiply(1 / (a * d - b * c), matrix([[d, -b], [-c, a]]))
+        return multiply(1 / (a * d - b * c), array([[d, -b], [-c, a]]))
 
     def solve(self, s, n):
         """Solve the system of equation by Newton-Raphson method."""
 
         def iteration(x):
             inverse_jacobi = self.inverse_jacoby(x)
-            f_matrix = matrix([
-                [self.test_function(self.x1, self.x2, x)],
-                [self.test_function(self.x2, self.x3, x)],
-            ])
+            f_matrix = array([[self.f1(x)], [self.f2(x)]])
             product = inverse_jacobi.dot(f_matrix)
+
             return EarthPosition(x.latitude - product.item(0), x.longitude - product.item(1))
 
         for _ in range(n):
@@ -101,7 +92,7 @@ def stability_testing(last_solution):
             x2 = EarthPosition(39.746944, -105.210833, 23) # Golden, Colorado
             x3 = EarthPosition(4.711111, -74.072222, 44) # Bogota, Columbia
             solver = EpicenterSolver(x1, x2, x3)
-            solution = solver.solve(starting_estimate(x1, x2, x3), 1000)
+            solution = solver.solve(EarthPosition(60.0, -184.0, 44), 1000)
             print(EarthPosition(
                 solution.latitude - last_solution.latitude,
                 solution.longitude - last_solution.longitude,
@@ -109,12 +100,12 @@ def stability_testing(last_solution):
             ))
 
 if __name__ == "__main__":
-    x1 = EarthPosition(61.601944, -149.117222, 7.5) # Palmer, Alaska
-    x2 = EarthPosition(39.746944, -105.210833, 23) # Golden, Colorado
-    x3 = EarthPosition(4.711111, -74.072222, 44) # Bogota, Columbia
+    x1 = EarthPosition(61.601944, -149.117222, 7.5, convertToRad=True) # Palmer, Alaska
+    x2 = EarthPosition(39.746944, -105.210833, 23, convertToRad=True) # Golden, Colorado
+    x3 = EarthPosition(4.711111, -74.072222, 44, convertToRad=True) # Bogota, Columbia
 
     solver = EpicenterSolver(x1, x2, x3)
-    solution = solver.solve(starting_estimate(x1, x2, x3), 1000)
+    solution = solver.solve(EarthPosition(70.601944, -149.117222, 7.5), 10)
     print(solution)
     print("distances: "
             + str(solution.d(x1) / 1600) + ", "
