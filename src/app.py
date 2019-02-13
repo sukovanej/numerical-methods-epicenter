@@ -1,6 +1,6 @@
 import os
 
-from numpy import arctan2, arccos, arcsin, cos, sin, array, subtract, deg2rad, rad2deg, multiply, sqrt
+from numpy import arctan2, arccos, arcsin, cos, sin, array, subtract, deg2rad, rad2deg, multiply, sqrt, pi
 
 
 HAVERSINE = os.getenv("HAVERSINE") == "1" or False
@@ -9,8 +9,8 @@ EARTH_RADIUS = 6371000
 
 class EarthPosition(object):
     def __init__(self, latitude, longitude, time=0, convertToRad=False):
-        self.latitude = deg2rad(latitude) if convertToRad else latitude
-        self.longitude = deg2rad(longitude) if convertToRad else longitude
+        self.latitude = (deg2rad(latitude) if convertToRad else latitude) % (2 * pi)
+        self.longitude = (deg2rad(longitude) if convertToRad else longitude) % (2 * pi)
 
         self.time = float(time)
 
@@ -92,7 +92,7 @@ def stability_testing(last_solution):
             x2 = EarthPosition(39.746944, -105.210833, 23) # Golden, Colorado
             x3 = EarthPosition(4.711111, -74.072222, 44) # Bogota, Columbia
             solver = EpicenterSolver(x1, x2, x3)
-            solution = solver.solve(EarthPosition(60.0, -184.0, 44), 1000)
+            solution = solver.solve(EarthPosition(60.0, -184.0, 44), 100)
             print(EarthPosition(
                 solution.latitude - last_solution.latitude,
                 solution.longitude - last_solution.longitude,
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     x3 = EarthPosition(4.711111, -74.072222, 44, convertToRad=True) # Bogota, Columbia
 
     solver = EpicenterSolver(x1, x2, x3)
-    solution = solver.solve(EarthPosition(70.601944, -149.117222, 7.5), 10)
+    solution = solver.solve(EarthPosition(75.601944, -170.117222, 7.5), 10000)
     print(solution)
     print("distances: "
             + str(solution.d(x1) / 1600) + ", "
